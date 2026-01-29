@@ -1,98 +1,186 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
 
 export default function HomeScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.header}>
+        <ThemedText style={styles.headerTitle}>Welcome to FBLA Connect</ThemedText>
+        <ThemedText style={styles.headerSubtitle}>Alex!</ThemedText>
+      </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
+      <View style={styles.avatarContainer} pointerEvents="none">
+        <View style={styles.avatar}>
+          <Image
+            source={require('@/assets/images/logo.png')}
+            style={styles.avatarImage}
+            contentFit="contain"
+          />
+        </View>
+      </View>
+
+      <ThemedView style={styles.card}>
+        <View style={styles.cardHeaderRow}>
+          <View style={styles.bellCircle}>
+          <ThemedText style={styles.bellEmoji} lightColor="black" darkColor="black">🔔</ThemedText>
+          </View>
+          <ThemedText type="subtitle" style={styles.cardTitle} lightColor="black" darkColor="black">
+            Recent Notifications
+          </ThemedText>
+        </View>
+
+        <View style={styles.notificationList}>
+          <View style={styles.notificationItem}>
+            <View style={styles.iconCircleBlue}>
+              <ThemedText style={styles.iconEmoji} lightColor="black" darkColor="black">📅</ThemedText>
+            </View>
+            <View style={styles.notificationText}>
+              <ThemedText type="defaultSemiBold" lightColor="black" darkColor="black">Regional Competition Reminder</ThemedText>
+              <ThemedText style={styles.notificationSub} lightColor="black" darkColor="black">Regional Leadership Conference is in 5 days - March 15th</ThemedText>
+            </View>
+            <ThemedText style={styles.notificationTime} lightColor="black" darkColor="black">2h ago</ThemedText>
+          </View>
+
+          <View style={styles.notificationItem}>
+            <View style={styles.iconCircleYellow}>
+              <ThemedText style={styles.iconEmoji} lightColor="black" darkColor="black">💲</ThemedText>
+            </View>
+            <View style={styles.notificationText}>
+              <ThemedText type="defaultSemiBold" lightColor="black" darkColor="black">Dues Payment Reminder</ThemedText>
+              <ThemedText style={styles.notificationSub} lightColor="black" darkColor="black">State dues payment of $25 is due by March 10th</ThemedText>
+            </View>
+            <ThemedText style={styles.notificationTime} lightColor="black" darkColor="black">1d ago</ThemedText>
+          </View>
+        </View>
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+
+      <View style={{ height: 120 }} />
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    paddingBottom: 40,
+    backgroundColor: '#f2f6fb',
+  },
+  header: {
+    height: 220,
+    backgroundColor: '#0b4f86',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    color: 'white',
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  headerSubtitle: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  avatarContainer: {
+    alignItems: 'center',
+    marginTop: -40,
+    zIndex: 10,
+  },
+  avatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    borderWidth: 6,
+    borderColor: 'white',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarImage: {
+    width: 56,
+    height: 56,
+  },
+  card: {
+    backgroundColor: 'white',
+    marginHorizontal: 16,
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  cardHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  bellCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#00000010',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  bellEmoji: {
+    fontSize: 18,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  notificationList: {
+    marginTop: 12,
+  },
+  notificationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fbfdff',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+  },
+  iconCircleBlue: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#dff0ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  iconCircleYellow: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff6db',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  iconEmoji: {
+    fontSize: 20,
+  },
+  notificationText: {
+    flex: 1,
+  },
+  notificationSub: {
+    color: '#191a1bff',
+    marginTop: 4,
+    fontSize: 13,
+  },
+  notificationTime: {
+    color: '#191a1bff',
+    fontSize: 12,
+    marginLeft: 8,
   },
 });
