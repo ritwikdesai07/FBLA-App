@@ -1,186 +1,257 @@
-import { Image } from 'expo-image';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Image,
+  SafeAreaView,
+  Dimensions,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+// --- Constants ---
+const STORAGE_KEY = '@fbla_reminders_v2';
+const FBLA_BLUE = '#003DA5';
+const FBLA_YELLOW = '#F0E15B';
+const { width } = Dimensions.get('window');
 
-export default function HomeScreen() {
+// --- Helper Functions ---
+const getGreeting = (name: string = 'User') => {
+  const hour = new Date().getHours();
+  if (hour < 12) return `Good Morning, ${name}`;
+  if (hour < 18) return `Good Afternoon, ${name}`;
+  return `Good Evening, ${name}`;
+};
+
+type Reminder = { id: string; title: string; notes: string };
+type ReminderMap = Record<string, Reminder[]>;
+type CalendarType = 'FBLA National' | 'FBLA State' | 'FBLA Regional';
+
+const HomeScreen = () => {
+  const [allReminders, setAllReminders] = useState<Record<CalendarType, ReminderMap>>({
+    'FBLA National': {},
+    'FBLA State': {},
+    'FBLA Regional': {},
+  });
+
+  // Load reminders from storage
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(STORAGE_KEY);
+        if (stored) setAllReminders(JSON.parse(stored));
+      } catch (e) {
+        console.error("Load Error", e);
+      }
+    };
+    loadData();
+
+    // Set up listener for storage changes
+    const interval = setInterval(loadData, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Get reminders within 7 days
+  const upcomingReminders = useMemo(() => {
+    const today = new Date();
+    const oneWeekAway = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const upcoming: Array<{
+      date: string;
+      title: string;
+      notes: string;
+      type: CalendarType;
+    }> = [];
+
+    const types: CalendarType[] = ['FBLA National', 'FBLA State', 'FBLA Regional'];
+
+    types.forEach((type) => {
+      const reminders = allReminders[type];
+      Object.entries(reminders).forEach(([dateStr, reminderList]) => {
+        const reminderDate = new Date(dateStr);
+        if (reminderDate >= today && reminderDate <= oneWeekAway) {
+          reminderList.forEach((reminder) => {
+            upcoming.push({
+              date: dateStr,
+              title: reminder.title,
+              notes: reminder.notes,
+              type,
+            });
+          });
+        }
+      });
+    });
+
+    // Sort by date
+    return upcoming.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [allReminders]);
+
+  const styles = createStyles();
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.header}>
-        <ThemedText style={styles.headerTitle}>Welcome to FBLA Connect</ThemedText>
-        <ThemedText style={styles.headerSubtitle}>Alex!</ThemedText>
-      </View>
-
-      <View style={styles.avatarContainer} pointerEvents="none">
-        <View style={styles.avatar}>
-          <Image
-            source={require('@/assets/images/logo.png')}
-            style={styles.avatarImage}
-            contentFit="contain"
-          />
-        </View>
-      </View>
-
-      <ThemedView style={styles.card}>
-        <View style={styles.cardHeaderRow}>
-          <View style={styles.bellCircle}>
-          <ThemedText style={styles.bellEmoji} lightColor="black" darkColor="black">🔔</ThemedText>
+    <SafeAreaView style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Banner with Logo */}
+        <View style={styles.bannerContainer}>
+          <View style={styles.banner}>
+            <Text style={styles.bannerText}>{getGreeting()}</Text>
           </View>
-          <ThemedText type="subtitle" style={styles.cardTitle} lightColor="black" darkColor="black">
-            Recent Notifications
-          </ThemedText>
-        </View>
-
-        <View style={styles.notificationList}>
-          <View style={styles.notificationItem}>
-            <View style={styles.iconCircleBlue}>
-              <ThemedText style={styles.iconEmoji} lightColor="black" darkColor="black">📅</ThemedText>
+          <View style={styles.logoCircleContainer}>
+            <View style={styles.logoCircle}>
+              <Image
+                source={require('@/assets/images/logo.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
             </View>
-            <View style={styles.notificationText}>
-              <ThemedText type="defaultSemiBold" lightColor="black" darkColor="black">Regional Competition Reminder</ThemedText>
-              <ThemedText style={styles.notificationSub} lightColor="black" darkColor="black">Regional Leadership Conference is in 5 days - March 15th</ThemedText>
-            </View>
-            <ThemedText style={styles.notificationTime} lightColor="black" darkColor="black">2h ago</ThemedText>
-          </View>
-
-          <View style={styles.notificationItem}>
-            <View style={styles.iconCircleYellow}>
-              <ThemedText style={styles.iconEmoji} lightColor="black" darkColor="black">💲</ThemedText>
-            </View>
-            <View style={styles.notificationText}>
-              <ThemedText type="defaultSemiBold" lightColor="black" darkColor="black">Dues Payment Reminder</ThemedText>
-              <ThemedText style={styles.notificationSub} lightColor="black" darkColor="black">State dues payment of $25 is due by March 10th</ThemedText>
-            </View>
-            <ThemedText style={styles.notificationTime} lightColor="black" darkColor="black">1d ago</ThemedText>
           </View>
         </View>
-      </ThemedView>
 
-      <View style={{ height: 120 }} />
-    </ScrollView>
+        {/* Upcoming Reminders Box */}
+        <View style={styles.contentContainer}>
+          <View style={styles.reminderBox}>
+            <Text style={styles.reminderTitle}>Upcoming This Week</Text>
+
+            {upcomingReminders.length === 0 ? (
+              <Text style={styles.emptyText}>No reminders set for the next 7 days</Text>
+            ) : (
+              <View>
+                {upcomingReminders.map((reminder, index) => (
+                  <View key={index} style={styles.reminderItem}>
+                    <View style={styles.reminderContent}>
+                      <Text style={styles.reminderDate}>
+                        {new Date(reminder.date + 'T00:00:00Z').toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.reminderItemTitle}>{reminder.title}</Text>
+                        {reminder.notes && (
+                          <Text style={styles.reminderItemNotes}>{reminder.notes}</Text>
+                        )}
+                        <Text style={styles.reminderType}>{reminder.type}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  container: {
-    paddingBottom: 40,
-    backgroundColor: '#f2f6fb',
-  },
-  header: {
-    height: 220,
-    backgroundColor: '#0b4f86',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    color: 'white',
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  headerSubtitle: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  avatarContainer: {
-    alignItems: 'center',
-    marginTop: -40,
-    zIndex: 10,
-  },
-  avatar: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    borderWidth: 6,
-    borderColor: 'white',
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarImage: {
-    width: 56,
-    height: 56,
-  },
-  card: {
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  bellCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#00000010',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bellEmoji: {
-    fontSize: 18,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  notificationList: {
-    marginTop: 12,
-  },
-  notificationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fbfdff',
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 12,
-  },
-  iconCircleBlue: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#dff0ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  iconCircleYellow: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#fff6db',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  iconEmoji: {
-    fontSize: 20,
-  },
-  notificationText: {
-    flex: 1,
-  },
-  notificationSub: {
-    color: '#191a1bff',
-    marginTop: 4,
-    fontSize: 13,
-  },
-  notificationTime: {
-    color: '#191a1bff',
-    fontSize: 12,
-    marginLeft: 8,
-  },
-});
+const createStyles = () =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: '#fff',
+    },
+    bannerContainer: {
+      position: 'relative',
+    },
+    banner: {
+      backgroundColor: FBLA_BLUE,
+      paddingVertical: 40,
+      paddingHorizontal: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    bannerText: {
+      color: '#fff',
+      fontSize: 24,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+    },
+    logoCircleContainer: {
+      alignItems: 'center',
+      marginTop: -32,
+      marginBottom: 20,
+    },
+    logoCircle: {
+      width: 85,
+      height: 85,
+      borderRadius: 42.5,
+      backgroundColor: '#fff',
+      borderWidth: 5,
+      borderColor: FBLA_YELLOW,
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 5,
+    },
+    logo: {
+      width: 64,
+      height: 64,
+    },
+    contentContainer: {
+      paddingHorizontal: 16,
+      paddingBottom: 20,
+    },
+    reminderBox: {
+      backgroundColor: '#fff',
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: '#e0e0e0',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    reminderTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: FBLA_BLUE,
+      marginBottom: 16,
+    },
+    emptyText: {
+      textAlign: 'center',
+      color: '#888',
+      fontSize: 14,
+      paddingVertical: 20,
+    },
+    reminderItem: {
+      marginBottom: 12,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: '#f0f0f0',
+    },
+    reminderContent: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+    },
+    reminderDate: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: FBLA_BLUE,
+      marginRight: 12,
+      minWidth: 45,
+    },
+    reminderItemTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#000',
+      marginBottom: 4,
+    },
+    reminderItemNotes: {
+      fontSize: 13,
+      color: '#666',
+      marginBottom: 4,
+    },
+    reminderType: {
+      fontSize: 11,
+      color: '#999',
+      fontStyle: 'italic',
+    },
+  });
+
+export default HomeScreen;
