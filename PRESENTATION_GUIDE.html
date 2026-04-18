@@ -1,0 +1,218 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>FBLA App Presentation Guide</title>
+<style>
+body{font-family:Segoe UI,Arial,sans-serif;line-height:1.5;color:#111;margin:36px;}
+h1,h2,h3{color:#003A8F;margin-top:22px;margin-bottom:8px;}
+h1{font-size:30px;} h2{font-size:22px;} h3{font-size:18px;}
+p{margin:8px 0;} ul,ol{margin:8px 0 8px 24px;} li{margin:4px 0;} code{background:#f1f3f8;padding:2px 5px;border-radius:4px;}
+</style></head><body>
+<h1>FBLA App - How Everything Works (Presentation Guide)</h1>
+<h2>1) Project Overview</h2>
+<p>
+The FBLA app is a React Native app built with **Expo + Expo Router**.<br>
+Its goal is to help FBLA members manage:<br>
+</p>
+<ul>
+<li>account/profile setup</li>
+<li>reminders by competition scope (National/State/Regional)</li>
+<li>dues tracking progress</li>
+<li>quick weekly overview on the home screen</li>
+</ul>
+<h2>2) Tech Stack</h2>
+<ul>
+<li>**Framework:** Expo (React Native)</li>
+<li>**Routing:** expo-router (file-based routing)</li>
+<li>**Language:** TypeScript</li>
+<li>**Storage:** AsyncStorage (local device storage)</li>
+<li>**UI Libraries:**</li>
+<li><code>react-native-calendars</code></li>
+<li><code>@react-native-picker/picker</code></li>
+<li><code>@expo/vector-icons</code></li>
+</ul>
+<h2>3) Folder Structure (Key Parts)</h2>
+<ul>
+<li><code>app/_layout.tsx</code>: Root layout + providers</li>
+<li><code>app/(tabs)/_layout.tsx</code>: Auth gating + tab navigation</li>
+<li><code>app/(tabs)/landing.tsx</code>: First entry screen (unauthenticated)</li>
+<li><code>app/(tabs)/auth-choice.tsx</code>: Login vs Signup choice</li>
+<li><code>app/(tabs)/login.tsx</code>: Existing user login</li>
+<li><code>app/(tabs)/signup.tsx</code>: New account + initial profile data</li>
+<li><code>app/(tabs)/profile-setup.tsx</code>: Required setup if profile incomplete</li>
+<li><code>app/(tabs)/index.tsx</code>: Home tab (weekly summary)</li>
+<li><code>app/(tabs)/reminders.tsx</code>: Reminder calendar and CRUD</li>
+<li><code>app/(tabs)/dashboard.tsx</code>: Profile snapshot + dues progress + logout</li>
+<li><code>app/(tabs)/other.tsx</code>: Placeholder future features list</li>
+<li><code>app/(tabs)/ThemeContext.tsx</code>: Custom light/dark color context</li>
+<li><code>lib/authStorage.ts</code>: Core local auth + user data persistence</li>
+</ul>
+<h2>4) App Startup and Navigation</h2>
+<h3>Root layout</h3>
+<p>
+<code>app/_layout.tsx</code> wraps the app in:<br>
+</p>
+<ul>
+<li>custom <code>ThemeProvider</code></li>
+<li>navigation theme provider</li>
+<li>stack routes</li>
+</ul>
+<p>
+It declares <code>(tabs)</code> as the main app and keeps a modal route available.<br>
+</p>
+<h3>Tab layout + route protection</h3>
+<p>
+<code>app/(tabs)/_layout.tsx</code> determines the app state:<br>
+</p>
+<ul>
+<li><code>loading</code></li>
+<li><code>unauthenticated</code></li>
+<li><code>needs-setup</code></li>
+<li><code>ready</code></li>
+</ul>
+<p>
+Based on state, it redirects users:<br>
+</p>
+<ul>
+<li>unauthenticated -&gt; <code>/landing</code></li>
+<li>profile incomplete -&gt; <code>/profile-setup</code></li>
+<li>ready -&gt; normal tabs (<code>Home</code>, <code>Reminders</code>, <code>Dashboard</code>, <code>Other</code>)</li>
+</ul>
+<p>
+Important detail: it re-checks user state every second (<code>setInterval</code>) so auth/profile changes appear immediately.<br>
+</p>
+<h2>5) Authentication and User Data</h2>
+<p>
+All user data is stored locally in AsyncStorage via <code>lib/authStorage.ts</code>.<br>
+</p>
+<h3>Storage keys</h3>
+<ul>
+<li><code>@fbla_users_v1</code> -&gt; database of all users</li>
+<li><code>@fbla_current_user_v1</code> -&gt; username of the active session</li>
+</ul>
+<h3>User record model</h3>
+<p>
+Each user contains:<br>
+</p>
+<ul>
+<li><code>username</code>, <code>password</code>, <code>displayName</code></li>
+<li><code>reminders</code> grouped by:</li>
+<li>FBLA National</li>
+<li>FBLA State</li>
+<li>FBLA Regional</li>
+<li><code>profile</code> fields:</li>
+<li>state, school, chapterName, gradDate</li>
+<li>duesTotal, duesPaid</li>
+<li><code>profileComplete</code></li>
+</ul>
+<h3>Core auth functions</h3>
+<ul>
+<li><code>signUpUser(...)</code> creates user + empty reminders + starter profile</li>
+<li><code>loginUser(...)</code> verifies credentials and sets current user</li>
+<li><code>logoutUser()</code> clears current session</li>
+<li><code>getCurrentUser()</code> reads active user</li>
+<li><code>setCurrentUserProfile(...)</code> updates profile fields</li>
+<li><code>setCurrentUserReminders(...)</code> writes reminder data</li>
+</ul>
+<h2>6) Screen-by-Screen Behavior</h2>
+<h3>Landing and Auth Choice</h3>
+<ul>
+<li>Landing introduces app value and routes to auth choice.</li>
+<li>Auth choice sends user to either Login or Signup.</li>
+</ul>
+<h3>Login</h3>
+<ul>
+<li>Validates non-empty fields.</li>
+<li>Calls <code>loginUser</code>.</li>
+<li>On success routes to <code>/</code>, then tab layout handles correct state.</li>
+</ul>
+<h3>Signup</h3>
+<ul>
+<li>Collects account + profile fields in one flow.</li>
+<li>Uses state picker + calendar date picker.</li>
+<li>Creates account with <code>signUpUser</code>, then saves profile and marks <code>profileComplete: true</code>.</li>
+</ul>
+<h3>Profile Setup</h3>
+<ul>
+<li>Fallback flow for users whose profile is incomplete.</li>
+<li>Blocks access to full app until required fields are filled and saved.</li>
+</ul>
+<h3>Home (`index.tsx`)</h3>
+<ul>
+<li>Loads current user and reminders.</li>
+<li>Computes upcoming reminders within next 7 days.</li>
+<li>Shows:</li>
+<li>greeting with display name</li>
+<li>upcoming reminder count</li>
+<li>dues progress percentage</li>
+<li>list of upcoming items</li>
+</ul>
+<h3>Reminders (`reminders.tsx`)</h3>
+<ul>
+<li>Lets user choose reminder scope: National/State/Regional.</li>
+<li>Calendar behavior:</li>
+<li>tap day -&gt; view reminders for that date</li>
+<li>long press day -&gt; open add-reminder mode</li>
+<li>Supports adding and deleting reminders.</li>
+<li>Persists changes with <code>setCurrentUserReminders</code>.</li>
+</ul>
+<h3>Dashboard</h3>
+<ul>
+<li>Shows read-only profile snapshot.</li>
+<li>Shows dues progress bar (<code>duesPaid / duesTotal</code>).</li>
+<li>Plus button opens modal to increment total dues and paid amount.</li>
+<li>Logout button clears session and returns to auth flow.</li>
+</ul>
+<h3>Other</h3>
+<ul>
+<li>Displays planned expansion features (quizzes, directory, goals, badges, internships, conference mode).</li>
+</ul>
+<h2>7) Theme System</h2>
+<p>
+<code>ThemeContext.tsx</code> defines custom light/dark palettes and stores selected theme in AsyncStorage (<code>@theme</code>).<br>
+</p>
+<p>
+Current behavior:<br>
+</p>
+<ul>
+<li>Theme state and colors are available globally through <code>useTheme()</code>.</li>
+<li>Most current screens use direct color constants (FBLA blue palette), so the custom theme is partially integrated.</li>
+</ul>
+<h2>8) Data Flow Summary</h2>
+<ol>
+<li>User signs up or logs in.</li>
+<li>Current username is stored as active session.</li>
+<li>Tab layout checks user state and routes accordingly.</li>
+<li>Screens load user/reminder data from AsyncStorage.</li>
+<li>User actions (add reminder, update dues, profile edits) write back to storage.</li>
+<li>Polling refresh (every second in key screens/layout) keeps UI synced.</li>
+</ol>
+<h2>9) What Makes This App Strong for FBLA Use</h2>
+<ul>
+<li>Structured by real FBLA levels (National/State/Regional)</li>
+<li>Practical student workflow (profile, deadlines, dues)</li>
+<li>Immediate value through weekly summary and calendar reminders</li>
+<li>Clear extension path via the <code>Other</code> section</li>
+</ul>
+<h2>10) Talking Points for Presentation</h2>
+<ul>
+<li>�This app uses local-first storage, so it works without a backend server.�</li>
+<li>�Route protection ensures users cannot access member features before authentication and profile setup.�</li>
+<li>�Reminder data is categorized by FBLA scope to match real competition planning.�</li>
+<li>�Dashboard turns dues into a visual progress bar for quick chapter tracking.�</li>
+<li>�The codebase is modular: auth logic is centralized in <code>lib/authStorage.ts</code>, while each screen handles one clear responsibility.�</li>
+</ul>
+<h2>11) Current Limitations (Honest Evaluation)</h2>
+<ul>
+<li>Credentials are stored locally (not encrypted auth service).</li>
+<li>Data is per-device (no cloud sync between devices).</li>
+<li>Frequent 1-second polling is simple but not the most efficient approach.</li>
+<li>Theme context exists but is not yet fully applied to all UI components.</li>
+</ul>
+<h2>12) Next Step Upgrades</h2>
+<ul>
+<li>Move auth/data to a backend (Firebase/Supabase) with secure authentication.</li>
+<li>Replace polling with event-driven updates/state management.</li>
+<li>Fully connect UI to <code>ThemeContext</code> for complete dark/light support.</li>
+<li>Add push notifications for reminders.</li>
+<li>Implement features listed on the <code>Other</code> tab.</li>
+</ul>
+</body></html>

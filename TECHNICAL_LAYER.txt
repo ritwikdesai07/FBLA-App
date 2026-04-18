@@ -1,0 +1,704 @@
+FBLA App Technical Layer
+Generated: 2026-03-10T13:02:34.368Z
+Scope: FBLA/ excluding node_modules, .git, .expo
+
+1. Technical Overview
+- Runtime: Expo + React Native + TypeScript; expo-router file-based routing under FBLA/app/.
+- State: local state + hook-based viewmodels; no external global store.
+- Persistence: AsyncStorage (users DB, current session, reminders, messaging DB).
+- UI: ThemeContext + themed hooks/components; vector icons + custom symbol wrapper.
+
+2. Runtime & Boot Sequence
+Process start -> expo-router/entry (FBLA/package.json)
+  -> FBLA/app/_layout.tsx (RootLayout): providers + Stack
+  -> FBLA/app/(tabs)/_layout.tsx (TabLayout): auth gating + Tabs
+  -> Route screen component: renders UI and calls viewmodels/services as needed
+
+3. Routes & Navigation Map
+- / -> FBLA/app/_layout.tsx | Root Expo Router layout: wraps providers + Stack navigator, anchors into `(tabs)` group. Uses Expo Router APIs; file path is part of runtime route graph.
+- / -> FBLA/app/(tabs)/_layout.tsx | Tabs layout: defines bottom tab navigation and typically performs auth gating/redirect logic. Uses Expo Router APIs; file path is part of runtime route graph. Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Polling/timers via setInterval: 1000ms. Router ops: replace×3.
+- / -> FBLA/app/(tabs)/index.tsx | Uses Expo Router APIs; file path is part of runtime route graph. Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Uses memoization; values may intentionally not update if deps are empty. Polling/timers via setInterval: 1000ms. Router ops: push×1.
+- / -> FBLA/app/index.tsx
+- /auth-choice -> FBLA/app/(tabs)/auth-choice.tsx | Uses Expo Router APIs; file path is part of runtime route graph. Router ops: replace×2.
+- /competition-code -> FBLA/app/(tabs)/competition-code.tsx
+- /competition-event -> FBLA/app/(tabs)/competition-event.tsx
+- /dashboard -> FBLA/app/(tabs)/dashboard.tsx | Uses Expo Router APIs; file path is part of runtime route graph. Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Uses memoization; values may intentionally not update if deps are empty. Polling/timers via setInterval: 1000ms. Router ops: replace×1.
+- /event-map -> FBLA/app/(tabs)/event-map.tsx
+- /home -> FBLA/app/(tabs)/home.tsx | Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Uses memoization; values may intentionally not update if deps are empty. Polling/timers via setInterval: 1000ms.
+- /landing -> FBLA/app/(tabs)/landing.tsx | Uses Expo Router APIs; file path is part of runtime route graph. Router ops: replace×1.
+- /login -> FBLA/app/(tabs)/login.tsx | Uses Expo Router APIs; file path is part of runtime route graph. Router ops: replace×2.
+- /messages/[username] -> FBLA/app/(tabs)/messages/[username].tsx | Uses Expo Router APIs; file path is part of runtime route graph. Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Uses memoization; values may intentionally not update if deps are empty. Polling/timers via setInterval: 1000ms. Router ops: replace×1, back×1.
+- /messaging -> FBLA/app/(tabs)/messaging.tsx | Uses Expo Router APIs; file path is part of runtime route graph. Uses memoization; values may intentionally not update if deps are empty. Router ops: push×2.
+- /modal -> FBLA/app/modal.tsx | Uses Expo Router APIs; file path is part of runtime route graph.
+- /news/[id] -> FBLA/app/(tabs)/news/[id].tsx | Uses Expo Router APIs; file path is part of runtime route graph.
+- /other -> FBLA/app/(tabs)/other.tsx | Uses Expo Router APIs; file path is part of runtime route graph. Router ops: push×2.
+- /practice-quiz-events -> FBLA/app/(tabs)/practice-quiz-events.tsx
+- /practice-quiz-viewer -> FBLA/app/(tabs)/practice-quiz-viewer.tsx
+- /profile-setup -> FBLA/app/(tabs)/profile-setup.tsx | Uses Expo Router APIs; file path is part of runtime route graph. Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Uses memoization; values may intentionally not update if deps are empty. Uses calendar UI; date format and timezone handling are key. Router ops: replace×3.
+- /reminders/ -> FBLA/app/(tabs)/reminders/index.tsx | Uses calendar UI; date format and timezone handling are key.
+- /signup -> FBLA/app/(tabs)/signup.tsx | Uses Expo Router APIs; file path is part of runtime route graph. Uses memoization; values may intentionally not update if deps are empty. Uses calendar UI; date format and timezone handling are key. Router ops: replace×2.
+
+4. Subsystem Architecture
+4.1 Auth + Session Gating
+- Data: FBLA/lib/authStorage.ts (AsyncStorage-backed user DB + current session key).
+- Gating: FBLA/app/(tabs)/_layout.tsx loads getCurrentUser() and redirects by AuthFlowState.
+- Redirect allowlist when unauthenticated: /landing, /auth-choice, /login, /signup.
+- Profile completeness gate: forces /profile-setup until profileComplete is true.
+
+4.2 Reminders
+- Route: FBLA/app/(tabs)/reminders/index.tsx
+- ViewModel: FBLA/features/reminders/useRemindersViewModel.ts
+- Domain helpers: FBLA/features/reminders/model.ts
+- Persistence: UserRecord.reminders via setCurrentUserReminders().
+
+4.3 Messaging
+- Routes: FBLA/app/(tabs)/messaging.tsx, FBLA/app/(tabs)/messages/[username].tsx
+- Storage: MESSAGES_DB_KEY; conversationId = sort([a,b]).join("__").
+- APIs: getAllMembersDirectory(), getCurrentUserConversations(), getConversationWithUser(), sendMessageToUser().
+
+4.4 Competition Tools
+- Model: FBLA/models/competitionModel.ts (code -> schedule).
+- ViewModel: FBLA/viewmodels/useCompetitionViewModel.ts (normalize + next upcoming).
+
+4.5 Practice Quiz
+- Model: FBLA/models/practiceQuizModel.ts
+- ViewModel: FBLA/viewmodels/usePracticeQuizViewModel.ts
+- PDF rendering: FBLA/screens/PracticeQuizViewerScreen.tsx uses react-native-pdf.
+
+4.6 News
+- Data: FBLA/lib/newsData.ts exports NEWS_ITEMS; route param id selects item.
+- Route: FBLA/app/(tabs)/news/[id].tsx renders fallback when id not found.
+
+5. Local Storage Schema
+- USERS_DB_KEY = "@fbla_users_v1"
+- CURRENT_USER_KEY = "@fbla_current_user_v1"
+- MESSAGES_DB_KEY = "@fbla_messages_v1"
+- Types: UserRecord, AllReminders, ConversationSummary/Detail, ChatMessage, MemberDirectoryItem.
+
+6. Module Graph Summary
+- Total files: 68
+- Internal import edges: 59
+- Most imported modules:
+  - 16x FBLA/lib/authStorage.ts
+  - 4x FBLA/hooks/use-color-scheme.ts
+  - 4x FBLA/models/competitionModel.ts
+  - 3x FBLA/components/themed-view.tsx
+  - 3x FBLA/hooks/use-theme-color.ts
+  - 2x FBLA/assets/images/logo.png
+  - 2x FBLA/components/themed-text.tsx
+  - 2x FBLA/constants/theme.ts
+  - 2x FBLA/contexts/ThemeContext.tsx
+  - 2x FBLA/features/social-media/socialMediaModel.ts
+
+7. Per-File Technical Reference
+
+Asset (4)
+---------
+File: FBLA/assets/images/logo.png
+- Size: 46035 bytes | Lines: 0 | SHA1: f5fc5bfd54de
+- Used by: FBLA/app/(tabs)/index.tsx, FBLA/app/(tabs)/news/[id].tsx
+
+File: FBLA/assets/maps/fbla_conference_map.png
+- Size: 46035 bytes | Lines: 0 | SHA1: f5fc5bfd54de
+- Used by: FBLA/screens/EventMapScreen.tsx
+
+File: FBLA/assets/tests/Accounting Sample Questions.pdf
+- Size: 169673 bytes | Lines: 0 | SHA1: 53647f1dd08c
+- Used by: FBLA/screens/PracticeQuizViewerScreen.tsx
+
+File: FBLA/assets/tests/Business Ethics Sample Questions.pdf
+- Size: 190849 bytes | Lines: 0 | SHA1: 36494cffd97f
+- Used by: FBLA/screens/PracticeQuizViewerScreen.tsx
+
+
+Component (10)
+-------------
+File: FBLA/components/external-link.tsx
+- Size: 794 bytes | Lines: 26 | SHA1: 45f9f4dff295
+- Exports: ExternalLink
+- Imports: expo-router, expo-web-browser, react
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph.
+- Public API (exports):
+  - function ExternalLink ({ href, ...rest }: Props)
+
+File: FBLA/components/haptic-tab.tsx
+- Size: 564 bytes | Lines: 19 | SHA1: 2e9b9836d394
+- Exports: HapticTab
+- Imports: @react-navigation/bottom-tabs, @react-navigation/elements, expo-haptics
+- Public API (exports):
+  - function HapticTab (props: BottomTabBarButtonProps)
+
+File: FBLA/components/hello-wave.tsx
+- Size: 405 bytes | Lines: 20 | SHA1: feb54e9004cf
+- Exports: HelloWave
+- Imports: react-native-reanimated
+- Public API (exports):
+  - function HelloWave ()
+
+File: FBLA/components/messaging/ConversationCard.tsx
+- Size: 1977 bytes | Lines: 63 | SHA1: 149d469f568c
+- Exports: ConversationCard
+- Imports: react, react-native, @/lib/authStorage
+- Used by: FBLA/app/(tabs)/messaging.tsx
+- Public API (exports):
+  - function ConversationCard ({ item, onPress }: ConversationCardProps)
+
+File: FBLA/components/parallax-scroll-view.tsx
+- Size: 1996 bytes | Lines: 80 | SHA1: f546b79f53a0
+- Exports: default(ParallaxScrollView)
+- Imports: react, react-native, react-native-reanimated, @/components/themed-view, @/hooks/use-color-scheme, @/hooks/use-theme-color
+- Public API (exports):
+  - default function ParallaxScrollView ({
+  children,
+  headerImage,
+  headerBackgroundColor,
+}: Props)
+
+File: FBLA/components/themed-text.tsx
+- Size: 1285 bytes | Lines: 61 | SHA1: 034b9d5cfaea
+- Exports: ThemedTextProps, ThemedText
+- Imports: react-native, @/hooks/use-theme-color
+- Used by: FBLA/app/modal.tsx, FBLA/components/ui/collapsible.tsx
+- Public API (exports):
+  - type ThemedTextProps
+  - function ThemedText ({
+  style,
+  lightColor,
+  darkColor,
+  type = 'default',
+  ...rest
+}: ThemedTextProps)
+
+File: FBLA/components/themed-view.tsx
+- Size: 470 bytes | Lines: 15 | SHA1: a18969dfaef9
+- Exports: ThemedViewProps, ThemedView
+- Imports: react-native, @/hooks/use-theme-color
+- Used by: FBLA/app/modal.tsx, FBLA/components/parallax-scroll-view.tsx, FBLA/components/ui/collapsible.tsx
+- Public API (exports):
+  - type ThemedViewProps
+  - function ThemedView ({ style, lightColor, darkColor, ...otherProps }: ThemedViewProps)
+
+File: FBLA/components/ui/collapsible.tsx
+- Size: 1362 bytes | Lines: 46 | SHA1: 71df826fbefb
+- Exports: Collapsible
+- Imports: react, react-native, @/components/themed-text, @/components/themed-view, @/components/ui/icon-symbol, @/constants/theme, @/hooks/use-color-scheme
+- Public API (exports):
+  - function Collapsible ({ children, title }: PropsWithChildren & { title: string })
+
+File: FBLA/components/ui/icon-symbol.ios.tsx
+- Size: 598 bytes | Lines: 33 | SHA1: f74d4f4b8b78
+- Exports: IconSymbol
+- Imports: expo-symbols, react-native
+- Public API (exports):
+  - function IconSymbol ({
+  name,
+  size = 24,
+  color,
+  style,
+  weight = 'regular',
+}: {
+  name: SymbolViewProps['name'];
+  size?: number;
+  color: string;
+  style?: StyleProp<ViewStyle>;
+  weight?: SymbolWeight;
+})
+
+File: FBLA/components/ui/icon-symbol.tsx
+- Size: 1479 bytes | Lines: 44 | SHA1: d86ab15f62c5
+- Exports: IconSymbol
+- Imports: @expo/vector-icons/MaterialIcons, expo-symbols, react, react-native
+- Used by: FBLA/components/ui/collapsible.tsx
+- Public API (exports):
+  - function IconSymbol ({
+  name,
+  size = 24,
+  color,
+  style,
+}: {
+  name: IconSymbolName;
+  size?: number;
+  color: string | OpaqueColorValue;
+  style?: StyleProp<TextStyle>;
+  weight?: SymbolWeight;
+})
+
+
+Config/Code (6)
+---------------
+File: FBLA/app.json
+- Size: 1155 bytes | Lines: 50 | SHA1: 5d767aed12d0
+
+File: FBLA/eslint.config.js
+- Size: 237 bytes | Lines: 11 | SHA1: c6f2f99b8765
+- Imports: eslint/config, eslint-config-expo/flat
+
+File: FBLA/package-lock.json
+- Size: 483650 bytes | Lines: 13013 | SHA1: 71d7fb7cf5bd
+
+File: FBLA/package.json
+- Size: 1590 bytes | Lines: 53 | SHA1: 795b66a0a7fe
+
+File: FBLA/scripts/reset-project.js
+- Size: 3608 bytes | Lines: 113 | SHA1: c1dcd32cc86b
+- Exports: default(Index)
+- Imports: fs, path, readline
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph.
+- Public API (exports):
+  - default function Index ()
+
+File: FBLA/tsconfig.json
+- Size: 242 bytes | Lines: 18 | SHA1: 49617b82a993
+
+
+Constant (1)
+------------
+File: FBLA/constants/theme.ts
+- Size: 1630 bytes | Lines: 54 | SHA1: 33b07beb7689
+- Exports: Colors, Fonts
+- Imports: react-native
+- Used by: FBLA/components/ui/collapsible.tsx, FBLA/hooks/use-theme-color.ts
+- Public API (exports):
+  - const Colors
+  - const Fonts
+
+
+Context (1)
+-----------
+File: FBLA/contexts/ThemeContext.tsx
+- Size: 2160 bytes | Lines: 89 | SHA1: b09a5dc74afe
+- Exports: ThemeProvider, useTheme
+- Imports: react, @react-native-async-storage/async-storage
+- Used by: FBLA/app/_layout.tsx, FBLA/app/index.tsx
+- Notes: Uses AsyncStorage: JSON serialization, schema/versioning matters. Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. AsyncStorage ops: getItem×1, setItem×1.
+- Public API (exports):
+  - const ThemeProvider
+  - const useTheme ()
+
+
+Documentation (6)
+-----------------
+File: FBLA/FBLA_SYSTEMS.txt
+- Size: 6544 bytes | Lines: 100 | SHA1: 757c302b329f
+
+File: FBLA/PRESENTATION_GUIDE.html
+- Size: 8953 bytes | Lines: 218 | SHA1: fc9639f925de
+
+File: FBLA/PRESENTATION_GUIDE.md
+- Size: 6591 bytes | Lines: 171 | SHA1: c2fded036bc4
+
+File: FBLA/PRESENTATION_GUIDE.pdf
+- Size: 154543 bytes | Lines: 0 | SHA1: cb0fc65aac6c
+
+File: FBLA/README.md
+- Size: 1741 bytes | Lines: 51 | SHA1: 7c428cafa7b6
+
+File: FBLA/SYSTEM_STORAGE_DETAILED.txt
+- Size: 13160 bytes | Lines: 418 | SHA1: e46c7574e7a6
+
+
+Feature (4)
+-----------
+File: FBLA/features/reminders/model.ts
+- Size: 2452 bytes | Lines: 86 | SHA1: 4af54ad5511f
+- Exports: ReminderFormData, loadCurrentUserReminders, persistCurrentUserReminders, getRemindersForTypeAndDate, buildMarkedDates, buildUpdatedRemindersAfterSave, buildUpdatedRemindersAfterDelete
+- Imports: @/lib/authStorage
+- Used by: FBLA/features/reminders/useRemindersViewModel.ts
+- Public API (exports):
+  - type ReminderFormData
+  - const loadCurrentUserReminders
+  - const persistCurrentUserReminders async(reminders: AllReminders)
+  - const getRemindersForTypeAndDate
+  - const buildMarkedDates (allReminders: AllReminders, selectedType: CalendarType, selectedDate: string)
+  - const buildUpdatedRemindersAfterSave
+  - const buildUpdatedRemindersAfterDelete
+
+File: FBLA/features/reminders/useRemindersViewModel.ts
+- Size: 2876 bytes | Lines: 105 | SHA1: 27691ac5e986
+- Exports: useRemindersViewModel
+- Imports: react-native, react, @/lib/authStorage, ./model
+- Used by: FBLA/app/(tabs)/reminders/index.tsx
+- Notes: Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Uses memoization; values may intentionally not update if deps are empty. Polling/timers via setInterval: 2000ms.
+- Public API (exports):
+  - function useRemindersViewModel ()
+
+File: FBLA/features/social-media/socialMediaModel.ts
+- Size: 5861 bytes | Lines: 189 | SHA1: d847b913b49c
+- Exports: SocialMediaLinks, loadStoredSocialLinks, persistSocialLinks, searchChapterSocialLinks
+- Imports: @react-native-async-storage/async-storage, @/lib/authStorage
+- Used by: FBLA/app/(tabs)/dashboard.tsx, FBLA/features/social-media/useSocialMediaViewModel.ts
+- Notes: Uses AsyncStorage: JSON serialization, schema/versioning matters. AsyncStorage ops: getItem×1, setItem×1.
+- Public API (exports):
+  - type SocialMediaLinks
+  - const loadStoredSocialLinks
+  - const persistSocialLinks async(links: SocialMediaLinks)
+  - const searchChapterSocialLinks
+
+File: FBLA/features/social-media/useSocialMediaViewModel.ts
+- Size: 2114 bytes | Lines: 80 | SHA1: 9e67451ecb18
+- Exports: useSocialMediaViewModel
+- Imports: react-native, react, @/lib/authStorage, ./socialMediaModel
+- Notes: Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Uses memoization; values may intentionally not update if deps are empty.
+- Public API (exports):
+  - function useSocialMediaViewModel ()
+
+
+Hook (3)
+--------
+File: FBLA/hooks/use-color-scheme.ts
+- Size: 47 bytes | Lines: 2 | SHA1: d932151d9578
+- Exports: useColorScheme
+- Used by: FBLA/app/_layout.tsx, FBLA/components/parallax-scroll-view.tsx, FBLA/components/ui/collapsible.tsx, FBLA/hooks/use-theme-color.ts
+
+File: FBLA/hooks/use-color-scheme.web.ts
+- Size: 480 bytes | Lines: 22 | SHA1: 350188df443c
+- Exports: useColorScheme
+- Imports: react, react-native
+- Notes: Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior.
+- Public API (exports):
+  - function useColorScheme ()
+
+File: FBLA/hooks/use-theme-color.ts
+- Size: 537 bytes | Lines: 22 | SHA1: 3fff5f3cb493
+- Exports: useThemeColor
+- Imports: @/constants/theme, @/hooks/use-color-scheme
+- Used by: FBLA/components/parallax-scroll-view.tsx, FBLA/components/themed-text.tsx, FBLA/components/themed-view.tsx
+- Public API (exports):
+  - function useThemeColor (props: { light?: string; dark?: string },
+  colorName: keyof typeof Colors.light & keyof typeof Colors.dark)
+
+
+Library (2)
+-----------
+File: FBLA/lib/authStorage.ts
+- Size: 9862 bytes | Lines: 336 | SHA1: f6050ad214eb
+- Exports: Reminder, ReminderMap, CalendarType, AllReminders, ChatMessage, ConversationSummary, ConversationDetail, MemberDirectoryItem, UserRecord, emptyReminders, signUpUser, loginUser, logoutUser, getCurrentUser, setCurrentUserReminders, setCurrentUserProfile, setCurrentUserDisplayName, getAllMembersDirectory, getCurrentUserConversations, getConversationWithUser, sendMessageToUser
+- Imports: @react-native-async-storage/async-storage
+- Used by: FBLA/app/(tabs)/_layout.tsx, FBLA/app/(tabs)/dashboard.tsx, FBLA/app/(tabs)/home.tsx, FBLA/app/(tabs)/index.tsx, FBLA/app/(tabs)/login.tsx, FBLA/app/(tabs)/messages/[username].tsx, FBLA/app/(tabs)/messaging.tsx, FBLA/app/(tabs)/profile-setup.tsx, FBLA/app/(tabs)/reminders/index.tsx, FBLA/app/(tabs)/signup.tsx, FBLA/components/messaging/ConversationCard.tsx, FBLA/features/reminders/model.ts, FBLA/features/reminders/useRemindersViewModel.ts, FBLA/features/social-media/socialMediaModel.ts, FBLA/features/social-media/useSocialMediaViewModel.ts, FBLA/models/practiceQuizModel.ts
+- Notes: Uses AsyncStorage: JSON serialization, schema/versioning matters. AsyncStorage ops: getItem×10, setItem×4, removeItem×1.
+- Public API (exports):
+  - type Reminder
+  - type ReminderMap
+  - type CalendarType
+  - type AllReminders
+  - type ChatMessage
+  - type ConversationSummary
+  - type ConversationDetail
+  - type MemberDirectoryItem
+  - type UserRecord
+  - const emptyReminders
+  - const signUpUser async(username: string, password: string, displayName: string)
+  - const loginUser async(username: string, password: string)
+  - const logoutUser async()
+  - const getCurrentUser
+  - const setCurrentUserReminders async(reminders: AllReminders)
+  - const setCurrentUserProfile async(profilePatch: Partial<UserRecord['profile']>)
+  - const setCurrentUserDisplayName async(displayName: string)
+  - const getAllMembersDirectory
+  - const getCurrentUserConversations
+  - const getConversationWithUser
+  - const sendMessageToUser async(otherUsername: string, text: string)
+
+File: FBLA/lib/newsData.ts
+- Size: 3717 bytes | Lines: 71 | SHA1: 5ccb40e6f3e4
+- Exports: NewsItem, NEWS_ITEMS
+- Used by: FBLA/app/(tabs)/index.tsx, FBLA/app/(tabs)/news/[id].tsx
+- Public API (exports):
+  - type NewsItem
+  - const NEWS_ITEMS
+
+
+Model (2)
+---------
+File: FBLA/models/competitionModel.ts
+- Size: 5447 bytes | Lines: 118 | SHA1: 0c4220187d43
+- Exports: PresentationSlot, CompetitionEvent, COMPETITION_EVENTS_BY_CODE, normalizeCompetitionCode, getCompetitionEventByCode
+- Used by: FBLA/screens/CompetitionCodeScreen.tsx, FBLA/screens/CompetitionEventScreen.tsx, FBLA/screens/EventMapScreen.tsx, FBLA/viewmodels/useCompetitionViewModel.ts
+- Public API (exports):
+  - type PresentationSlot
+  - type CompetitionEvent
+  - const COMPETITION_EVENTS_BY_CODE
+  - const normalizeCompetitionCode (code: string)
+  - const getCompetitionEventByCode
+
+File: FBLA/models/practiceQuizModel.ts
+- Size: 2595 bytes | Lines: 93 | SHA1: 76d0243b0896
+- Exports: PracticeQuizEvent, PRACTICE_QUIZ_EVENTS, PracticeQuizPrefs, loadPracticeQuizEvents, getPracticeQuizEventByName, loadPracticeQuizPrefs, persistPracticeQuizPrefs
+- Imports: @react-native-async-storage/async-storage, @/lib/authStorage
+- Used by: FBLA/viewmodels/usePracticeQuizViewModel.ts
+- Notes: Uses AsyncStorage: JSON serialization, schema/versioning matters. AsyncStorage ops: getItem×1, setItem×1.
+- Public API (exports):
+  - type PracticeQuizEvent
+  - const PRACTICE_QUIZ_EVENTS
+  - type PracticeQuizPrefs
+  - const loadPracticeQuizEvents async()
+  - const getPracticeQuizEventByName async(eventName: string)
+  - const loadPracticeQuizPrefs
+  - const persistPracticeQuizPrefs async(prefs: PracticeQuizPrefs)
+
+
+Route (22)
+---------
+File: FBLA/app/_layout.tsx
+- Size: 899 bytes | Lines: 28 | SHA1: 4fc5d755adcf
+- Route: /
+- Exports: unstable_settings, default(RootLayout)
+- Imports: @react-navigation/native, expo-router, expo-status-bar, @/hooks/use-color-scheme, @/contexts/ThemeContext
+- Notes: Root Expo Router layout: wraps providers + Stack navigator, anchors into `(tabs)` group. Uses Expo Router APIs; file path is part of runtime route graph.
+- Public API (exports):
+  - const unstable_settings
+  - default function RootLayout ()
+
+File: FBLA/app/(tabs)/_layout.tsx
+- Size: 6912 bytes | Lines: 236 | SHA1: 55d291a1c39c
+- Route: /
+- Exports: default(TabLayout)
+- Imports: expo-router, react, @expo/vector-icons/MaterialIcons, react-native, @/lib/authStorage
+- Notes: Tabs layout: defines bottom tab navigation and typically performs auth gating/redirect logic. Uses Expo Router APIs; file path is part of runtime route graph. Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Polling/timers via setInterval: 1000ms. Router ops: replace×3.
+- Public API (exports):
+  - default function TabLayout ()
+
+File: FBLA/app/(tabs)/auth-choice.tsx
+- Size: 1803 bytes | Lines: 58 | SHA1: b39531a45566
+- Route: /auth-choice
+- Exports: default(AuthChoiceScreen)
+- Imports: react, react-native, expo-router
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Router ops: replace×2.
+- Public API (exports):
+  - default function AuthChoiceScreen ()
+
+File: FBLA/app/(tabs)/competition-code.tsx
+- Size: 108 bytes | Lines: 4 | SHA1: 1e3ef0d6625c
+- Route: /competition-code
+- Exports: default
+- Imports: @/screens/CompetitionCodeScreen
+- Public API (exports):
+  - default default
+
+File: FBLA/app/(tabs)/competition-event.tsx
+- Size: 111 bytes | Lines: 4 | SHA1: b1c296a2658d
+- Route: /competition-event
+- Exports: default
+- Imports: @/screens/CompetitionEventScreen
+- Public API (exports):
+  - default default
+
+File: FBLA/app/(tabs)/dashboard.tsx
+- Size: 14111 bytes | Lines: 432 | SHA1: 20fded6c0e20
+- Route: /dashboard
+- Exports: default(DashboardScreen)
+- Imports: react, react-native, @expo/vector-icons/MaterialIcons, @expo/vector-icons/Ionicons, expo-router, @/lib/authStorage, @/features/social-media/socialMediaModel
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Uses memoization; values may intentionally not update if deps are empty. Polling/timers via setInterval: 1000ms. Router ops: replace×1.
+- Public API (exports):
+  - default function DashboardScreen ()
+
+File: FBLA/app/(tabs)/event-map.tsx
+- Size: 87 bytes | Lines: 4 | SHA1: ad50c39c1a11
+- Route: /event-map
+- Exports: default
+- Imports: @/screens/EventMapScreen
+- Public API (exports):
+  - default default
+
+File: FBLA/app/(tabs)/home.tsx
+- Size: 3731 bytes | Lines: 102 | SHA1: 7a4931e67fbd
+- Route: /home
+- Exports: default(HomeScreen)
+- Imports: react, react-native, @/lib/authStorage
+- Notes: Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Uses memoization; values may intentionally not update if deps are empty. Polling/timers via setInterval: 1000ms.
+- Public API (exports):
+  - default function HomeScreen ()
+
+File: FBLA/app/(tabs)/index.tsx
+- Size: 9681 bytes | Lines: 276 | SHA1: 32c577fcf875
+- Route: /
+- Exports: default(HomeScreen)
+- Imports: react, react-native, expo-router, @expo/vector-icons/MaterialIcons, @/lib/authStorage, @/lib/newsData, @/assets/images/logo.png
+- Used by: FBLA/app/index.tsx
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Uses memoization; values may intentionally not update if deps are empty. Polling/timers via setInterval: 1000ms. Router ops: push×1.
+- Public API (exports):
+  - default function HomeScreen ()
+
+File: FBLA/app/(tabs)/landing.tsx
+- Size: 1522 bytes | Lines: 47 | SHA1: 4234ec1f1ef6
+- Route: /landing
+- Exports: default(LandingScreen)
+- Imports: react, react-native, expo-router
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Router ops: replace×1.
+- Public API (exports):
+  - default function LandingScreen ()
+
+File: FBLA/app/(tabs)/login.tsx
+- Size: 3239 bytes | Lines: 115 | SHA1: b85f90ced4ba
+- Route: /login
+- Exports: default(LoginScreen)
+- Imports: react, react-native, expo-router, @/lib/authStorage
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Router ops: replace×2.
+- Public API (exports):
+  - default function LoginScreen ()
+
+File: FBLA/app/(tabs)/messages/[username].tsx
+- Size: 6020 bytes | Lines: 188 | SHA1: d1292d280ae2
+- Route: /messages/[username]
+- Exports: default(ConversationScreen)
+- Imports: react, react-native, @expo/vector-icons/MaterialIcons, expo-router, @/lib/authStorage
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Uses memoization; values may intentionally not update if deps are empty. Polling/timers via setInterval: 1000ms. Router ops: replace×1, back×1.
+- Public API (exports):
+  - default function ConversationScreen ()
+
+File: FBLA/app/(tabs)/messaging.tsx
+- Size: 6640 bytes | Lines: 211 | SHA1: 100f905cfce1
+- Route: /messaging
+- Exports: default(MessagingScreen)
+- Imports: react, react-native, @expo/vector-icons/MaterialIcons, expo-router, @react-navigation/native, @react-navigation/bottom-tabs, @/lib/authStorage, @/components/messaging/ConversationCard
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Uses memoization; values may intentionally not update if deps are empty. Router ops: push×2.
+- Public API (exports):
+  - default function MessagingScreen ()
+
+File: FBLA/app/(tabs)/news/[id].tsx
+- Size: 3014 bytes | Lines: 89 | SHA1: 6b72bd0cef88
+- Route: /news/[id]
+- Exports: default(NewsArticleScreen)
+- Imports: react, react-native, expo-router, @/lib/newsData, @/assets/images/logo.png
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph.
+- Public API (exports):
+  - default function NewsArticleScreen ()
+
+File: FBLA/app/(tabs)/other.tsx
+- Size: 4651 bytes | Lines: 139 | SHA1: 707392986cd5
+- Route: /other
+- Exports: default(OtherScreen)
+- Imports: react, react-native, @expo/vector-icons/MaterialIcons, expo-router
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Router ops: push×2.
+- Public API (exports):
+  - default function OtherScreen ()
+
+File: FBLA/app/(tabs)/practice-quiz-events.tsx
+- Size: 117 bytes | Lines: 4 | SHA1: 8d3033c5df14
+- Route: /practice-quiz-events
+- Exports: default
+- Imports: @/screens/PracticeQuizEventsScreen
+- Public API (exports):
+  - default default
+
+File: FBLA/app/(tabs)/practice-quiz-viewer.tsx
+- Size: 117 bytes | Lines: 4 | SHA1: 32f602a239d0
+- Route: /practice-quiz-viewer
+- Exports: default
+- Imports: @/screens/PracticeQuizViewerScreen
+- Public API (exports):
+  - default default
+
+File: FBLA/app/(tabs)/profile-setup.tsx
+- Size: 7790 bytes | Lines: 239 | SHA1: 178388f5c99d
+- Route: /profile-setup
+- Exports: default(ProfileSetupScreen)
+- Imports: react, react-native, @react-native-picker/picker, react-native-calendars, @/lib/authStorage, expo-router
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Uses memoization; values may intentionally not update if deps are empty. Uses calendar UI; date format and timezone handling are key. Router ops: replace×3.
+- Public API (exports):
+  - default function ProfileSetupScreen ()
+
+File: FBLA/app/(tabs)/reminders/index.tsx
+- Size: 10325 bytes | Lines: 308 | SHA1: fde9ec78effd
+- Route: /reminders/
+- Exports: default(RemindersScreen)
+- Imports: react, react-native, react-native-calendars, @expo/vector-icons/MaterialIcons, @/lib/authStorage, @/features/reminders/useRemindersViewModel
+- Notes: Uses calendar UI; date format and timezone handling are key.
+- Public API (exports):
+  - default function RemindersScreen ()
+
+File: FBLA/app/(tabs)/signup.tsx
+- Size: 10367 bytes | Lines: 302 | SHA1: 57121274eabf
+- Route: /signup
+- Exports: default(SignupScreen)
+- Imports: react, react-native, @expo/vector-icons/MaterialIcons, react-native-calendars, expo-router, @/lib/authStorage
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Uses memoization; values may intentionally not update if deps are empty. Uses calendar UI; date format and timezone handling are key. Router ops: replace×2.
+- Public API (exports):
+  - default function SignupScreen ()
+
+File: FBLA/app/index.tsx
+- Size: 222 bytes | Lines: 11 | SHA1: 6b96cdcaf481
+- Route: /
+- Exports: default(App)
+- Imports: @/contexts/ThemeContext, ./(tabs)/index
+- Public API (exports):
+  - default function App ()
+
+File: FBLA/app/modal.tsx
+- Size: 703 bytes | Lines: 30 | SHA1: 1e156f254962
+- Route: /modal
+- Exports: default(ModalScreen)
+- Imports: expo-router, react-native, @/components/themed-text, @/components/themed-view
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph.
+- Public API (exports):
+  - default function ModalScreen ()
+
+
+Screen (5)
+----------
+File: FBLA/screens/CompetitionCodeScreen.tsx
+- Size: 3422 bytes | Lines: 117 | SHA1: fc1cc342e65c
+- Exports: default(CompetitionCodeScreen)
+- Imports: react, react-native, react-native-safe-area-context, expo-router, @/models/competitionModel
+- Used by: FBLA/app/(tabs)/competition-code.tsx
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Router ops: push×1.
+- Public API (exports):
+  - default function CompetitionCodeScreen ()
+
+File: FBLA/screens/CompetitionEventScreen.tsx
+- Size: 6096 bytes | Lines: 179 | SHA1: e6d397e4dc43
+- Exports: default(CompetitionEventScreen)
+- Imports: react, react-native, react-native-safe-area-context, @expo/vector-icons/MaterialIcons, expo-router, @/viewmodels/useCompetitionViewModel, @/models/competitionModel
+- Used by: FBLA/app/(tabs)/competition-event.tsx
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Uses memoization; values may intentionally not update if deps are empty. Router ops: push×1.
+- Public API (exports):
+  - default function CompetitionEventScreen ()
+
+File: FBLA/screens/EventMapScreen.tsx
+- Size: 1617 bytes | Lines: 52 | SHA1: a327d8000827
+- Exports: default(EventMapScreen)
+- Imports: react, react-native, react-native-safe-area-context, expo-router, @/models/competitionModel, ../assets/maps/fbla_conference_map.png
+- Used by: FBLA/app/(tabs)/event-map.tsx
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph.
+- Public API (exports):
+  - default function EventMapScreen ()
+
+File: FBLA/screens/PracticeQuizEventsScreen.tsx
+- Size: 4719 bytes | Lines: 149 | SHA1: f5ec69428cab
+- Exports: default(PracticeQuizEventsScreen)
+- Imports: react, react-native, @expo/vector-icons/MaterialIcons, expo-router, @/viewmodels/usePracticeQuizViewModel
+- Used by: FBLA/app/(tabs)/practice-quiz-events.tsx
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Router ops: push×1.
+- Public API (exports):
+  - default function PracticeQuizEventsScreen ()
+
+File: FBLA/screens/PracticeQuizViewerScreen.tsx
+- Size: 5442 bytes | Lines: 157 | SHA1: f6d4891ad3fc
+- Exports: default(PracticeQuizViewerScreen)
+- Imports: react, react-native, @expo/vector-icons/MaterialIcons, expo-constants, expo-router, @/viewmodels/usePracticeQuizViewModel, ../assets/tests/Accounting Sample Questions.pdf, ../assets/tests/Business Ethics Sample Questions.pdf, react-native-pdf
+- Used by: FBLA/app/(tabs)/practice-quiz-viewer.tsx
+- Notes: Uses Expo Router APIs; file path is part of runtime route graph. Uses memoization; values may intentionally not update if deps are empty. Renders PDFs; ensure native linking/permissions for device platforms. Router ops: back×1.
+- Public API (exports):
+  - default function PracticeQuizViewerScreen ()
+
+
+ViewModel (2)
+-------------
+File: FBLA/viewmodels/useCompetitionViewModel.ts
+- Size: 1301 bytes | Lines: 41 | SHA1: 56eb0474aeb9
+- Exports: useCompetitionViewModel
+- Imports: react, @/models/competitionModel
+- Used by: FBLA/screens/CompetitionEventScreen.tsx
+- Notes: Uses memoization; values may intentionally not update if deps are empty.
+- Public API (exports):
+  - function useCompetitionViewModel (rawCode: string)
+
+File: FBLA/viewmodels/usePracticeQuizViewModel.ts
+- Size: 2707 bytes | Lines: 100 | SHA1: f4f024dcb085
+- Exports: usePracticeQuizViewModel, usePracticeQuizViewerViewModel
+- Imports: react, @/models/practiceQuizModel
+- Used by: FBLA/screens/PracticeQuizEventsScreen.tsx, FBLA/screens/PracticeQuizViewerScreen.tsx
+- Notes: Has React side effects via `useEffect`; check dependency arrays for lifecycle behavior. Uses memoization; values may intentionally not update if deps are empty.
+- Public API (exports):
+  - function usePracticeQuizViewModel ()
+  - function usePracticeQuizViewerViewModel (eventName: string)
