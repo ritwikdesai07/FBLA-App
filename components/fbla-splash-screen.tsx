@@ -119,7 +119,7 @@ export function FblaSplashScreen() {
 
   return (
     <View style={styles.container}>
-      <BlurView intensity={28} tint="light" style={StyleSheet.absoluteFill} />
+      <BlurView pointerEvents="none" intensity={28} tint="light" style={StyleSheet.absoluteFill} />
       <Animated.View style={[styles.mark, { height: markHeight, width: markWidth, transform: [{ scale: lockScale }] }]}>
         <Animated.Image source={FULL_DELTA} resizeMode="contain" style={[styles.pieceLayer, { opacity: assembledOpacity }]} />
         <Animated.View

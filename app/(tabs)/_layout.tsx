@@ -5,10 +5,11 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { View } from 'react-native';
 import { BlurView } from 'expo-blur';
 
-import { getCurrentUser } from '@/lib/authStorage';
-import { FBLATheme } from '@/constants/theme';
+import { clearLocalAccountDataOnce, getCurrentUser } from '@/lib/authStorage';
+import { FBLATheme, fblaShadow } from '@/constants/theme';
+import { scheduleReminderNotificationsForUser } from '@/lib/notifications';
 
-type AuthFlowState = 'loading' | 'unauthenticated' | 'needs-setup' | 'ready';
+type AuthFlowState = 'loading' | 'unauthenticated' | 'ready';
 const AUTH_PATHS = ['/landing', '/login', '/signup'];
 
 export default function TabLayout() {
@@ -19,6 +20,7 @@ export default function TabLayout() {
 
   const loadAuthState = useCallback(async () => {
     try {
+      await clearLocalAccountDataOnce();
       const user = await getCurrentUser();
 
       if (!user) {
@@ -26,11 +28,7 @@ export default function TabLayout() {
         return;
       }
 
-      if (!user.profile?.profileComplete) {
-        setAuthFlowState('needs-setup');
-        return;
-      }
-
+      void scheduleReminderNotificationsForUser(user.username, user.reminders);
       setAuthFlowState('ready');
     } catch (e) {
       console.error('Failed to load user in TabLayout', e);
@@ -63,12 +61,7 @@ export default function TabLayout() {
           return;
         }
 
-        setAuthFlowState(user.profile?.profileComplete ? 'ready' : 'needs-setup');
-        return;
-      }
-
-      if (authFlowState === 'needs-setup' && pathname !== '/profile-setup') {
-        router.replace('/profile-setup');
+        setAuthFlowState('ready');
         return;
       }
 
@@ -85,9 +78,6 @@ export default function TabLayout() {
         return;
       }
 
-      if (authFlowState === 'ready' && pathname === '/profile-setup') {
-        router.replace('/');
-      }
     };
 
     routeForAuthState();
@@ -110,24 +100,6 @@ export default function TabLayout() {
         <Tabs.Screen name="landing" options={{ href: null }} />
         <Tabs.Screen name="login" options={{ href: null }} />
         <Tabs.Screen name="signup" options={{ href: null }} />
-      </Tabs>
-    );
-  }
-
-  if (authFlowState === 'needs-setup') {
-    return (
-      <Tabs
-        screenOptions={{
-          tabBarActiveTintColor: FBLATheme.blue,
-          headerShown: false,
-          tabBarStyle: { display: 'none' },
-        }}>
-        <Tabs.Screen
-          name="profile-setup"
-          options={{
-            title: 'Profile Setup',
-          }}
-        />
       </Tabs>
     );
   }
@@ -161,14 +133,11 @@ export default function TabLayout() {
           borderRadius: FBLATheme.radius.xl,
           backgroundColor: 'rgba(251, 252, 255, 0.72)',
           overflow: 'hidden',
-          shadowColor: FBLATheme.shadow,
-          shadowOpacity: 0.14,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 10,
+          ...fblaShadow({ opacity: 0.14, radius: 14, offsetY: 6, elevation: 10 }),
         },
         tabBarBackground: () => (
           <BlurView
+            pointerEvents="none"
             tint="light"
             intensity={78}
             style={{
@@ -238,7 +207,6 @@ export default function TabLayout() {
       <Tabs.Screen name="dashboard" options={{ href: null }} />
       <Tabs.Screen name="messaging" options={{ href: null }} />
       <Tabs.Screen name="messages/[username]" options={{ href: null }} />
-      <Tabs.Screen name="profile-setup" options={{ href: null }} />
       <Tabs.Screen name="home" options={{ href: null }} />
       <Tabs.Screen name="login" options={{ href: null }} />
       <Tabs.Screen name="signup" options={{ href: null }} />

@@ -2,7 +2,7 @@ import React from 'react';
 import { Image, ImageSourcePropType, StyleProp, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { FBLATheme } from '@/constants/theme';
+import { FBLATheme, fblaShadow } from '@/constants/theme';
 
 type LiquidBackgroundProps = {
   children: React.ReactNode;
@@ -26,24 +26,28 @@ export function LiquidBackground({ children, style }: LiquidBackgroundProps) {
   return (
     <View style={[styles.background, style]}>
       <LinearGradient
+        pointerEvents="none"
         colors={['#F8FBFF', '#E8F1FF', '#FFF3A6']}
         start={{ x: 0.08, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
       <LinearGradient
+        pointerEvents="none"
         colors={['rgba(255, 210, 0, 0.62)', 'rgba(255, 210, 0, 0)']}
         start={{ x: 0.18, y: 0.12 }}
         end={{ x: 0.78, y: 0.92 }}
         style={[styles.blob, styles.goldBlob]}
       />
       <LinearGradient
+        pointerEvents="none"
         colors={['rgba(0, 61, 165, 0.45)', 'rgba(0, 61, 165, 0)']}
         start={{ x: 0.1, y: 0.08 }}
         end={{ x: 0.9, y: 0.95 }}
         style={[styles.blob, styles.blueBlob]}
       />
       <LinearGradient
+        pointerEvents="none"
         colors={['rgba(255, 255, 255, 0.9)', 'rgba(255, 255, 255, 0)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 0.75, y: 1 }}
@@ -157,11 +161,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.36)',
-    shadowColor: FBLATheme.shadow,
-    shadowOpacity: 0.24,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 12,
+    ...fblaShadow({ opacity: 0.24, radius: 24, offsetY: 14, elevation: 12 }),
   },
   blur: {
     overflow: 'hidden',
@@ -174,11 +174,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.64)',
-    shadowColor: FBLATheme.shadow,
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
+    ...fblaShadow({ opacity: 0.14, radius: 18, offsetY: 10, elevation: 8 }),
   },
   frostedTint: {
     padding: 16,
@@ -190,11 +186,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.75)',
-    shadowColor: FBLATheme.shadow,
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+    ...fblaShadow({ opacity: 0.22, radius: 12, offsetY: 6, elevation: 8 }),
   },
   profileImage: {
     width: '100%',
@@ -211,11 +203,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   logoShadow: {
-    shadowColor: FBLATheme.shadow,
-    shadowOpacity: 0.34,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 22 },
-    elevation: 16,
+    ...fblaShadow({ opacity: 0.34, radius: 30, offsetY: 22, elevation: 16 }),
   },
   logoPlate: {
     width: 152,
@@ -242,11 +230,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(0, 43, 115, 0.12)',
-    shadowColor: FBLATheme.shadow,
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 5,
+    ...fblaShadow({ opacity: 0.18, radius: 12, offsetY: 7, elevation: 5 }),
   },
   logoImage: {
     width: 98,

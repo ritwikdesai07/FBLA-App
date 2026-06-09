@@ -1,4 +1,25 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
+import {
+  Timestamp,
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+} from 'firebase/firestore';
+
+import { firebaseAuth, firestoreDb } from '@/lib/firebase';
 
 export type Reminder = { id: string; title: string; notes: string };
 export type ReminderMap = Record<string, Reminder[]>;
@@ -47,6 +68,7 @@ export type UserRecord = {
     profileComplete?: boolean;
   };
 };
+type UserProfile = NonNullable<UserRecord['profile']>;
 
 type UsersDb = Record<string, UserRecord>;
 type ConversationRecord = {
@@ -54,10 +76,18 @@ type ConversationRecord = {
   messages: ChatMessage[];
 };
 type MessagesDb = Record<string, ConversationRecord>;
+type RemoteUserSummary = {
+  uid: string;
+  username: string;
+  displayName: string;
+  chapterName: string;
+};
 
 const USERS_DB_KEY = '@fbla_users_v1';
 const CURRENT_USER_KEY = '@fbla_current_user_v1';
 const MESSAGES_DB_KEY = '@fbla_messages_v1';
+const LOCAL_AUTH_RESET_KEY = '@fbla_local_auth_reset_v1';
+const LOCAL_AUTH_RESET_VERSION = '2026-06-09-fresh-start';
 
 export const emptyReminders = (): AllReminders => ({
   'FBLA National': {},
@@ -99,8 +129,144 @@ const saveMessagesDb = async (db: MessagesDb) => {
 
 const buildConversationId = (usernameA: string, usernameB: string) =>
   [normalizeUsername(usernameA), normalizeUsername(usernameB)].sort().join('__');
+const buildFirestoreConversationId = (uidA: string, uidB: string) => [uidA, uidB].sort().join('__');
 
-export const signUpUser = async (username: string, password: string, displayName: string) => {
+const defaultProfile = (): NonNullable<UserRecord['profile']> => ({
+  state: '',
+  school: '',
+  chapterName: '',
+  gradDate: '',
+  profileImageUri: null,
+  duesTotal: 0,
+  duesPaid: 0,
+  profileComplete: false,
+});
+
+const syncCurrentUserRecordToFirestore = async (user: UserRecord) => {
+  const uid = firebaseAuth.currentUser?.uid;
+  if (!uid) return;
+
+  const userDoc = doc(firestoreDb, 'users', uid);
+  const snapshot = await getDoc(userDoc);
+  const timestamps = snapshot.exists()
+    ? { updatedAt: serverTimestamp() }
+    : { createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+
+  await setDoc(
+    userDoc,
+    {
+      uid,
+      email: user.username,
+      displayName: user.displayName,
+      reminders: user.reminders,
+      profile: user.profile ?? defaultProfile(),
+      ...timestamps,
+    },
+    { merge: true },
+  );
+};
+
+const syncCurrentUserRecordToFirestoreBestEffort = async (user: UserRecord) => {
+  try {
+    await syncCurrentUserRecordToFirestore(user);
+  } catch (error) {
+    console.warn('Firebase profile sync skipped', error);
+  }
+};
+
+const loadCurrentFirebaseUserRecord = async (username: string): Promise<Partial<UserRecord> | null> => {
+  const uid = firebaseAuth.currentUser?.uid;
+  if (!uid) return null;
+
+  try {
+    const snapshot = await getDoc(doc(firestoreDb, 'users', uid));
+    if (!snapshot.exists()) return null;
+
+    const data = snapshot.data() as Partial<UserRecord>;
+    return {
+      displayName: typeof data.displayName === 'string' ? data.displayName : firebaseAuth.currentUser?.displayName || username,
+      reminders: data.reminders ?? emptyReminders(),
+      profile: data.profile ?? defaultProfile(),
+    };
+  } catch (error) {
+    console.warn('Firebase user profile load skipped', error);
+    return null;
+  }
+};
+
+const currentFirebaseUid = () => {
+  const uid = firebaseAuth.currentUser?.uid;
+  if (!uid) {
+    throw new Error('No Firebase user is signed in.');
+  }
+  return uid;
+};
+
+const timestampToIso = (value: unknown) => {
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  return new Date().toISOString();
+};
+
+const mapRemoteUser = (uid: string, data: Record<string, any>, fallbackUsername = ''): RemoteUserSummary => ({
+  uid,
+  username: typeof data.email === 'string' ? data.email : fallbackUsername,
+  displayName: typeof data.displayName === 'string' && data.displayName.trim() ? data.displayName : fallbackUsername,
+  chapterName:
+    typeof data.profile?.chapterName === 'string' && data.profile.chapterName.trim()
+      ? data.profile.chapterName
+      : 'No chapter listed',
+});
+
+const getRemoteUserByUsername = async (username: string): Promise<RemoteUserSummary | null> => {
+  const cleanUsername = normalizeUsername(username);
+  const usersSnapshot = await getDocs(query(collection(firestoreDb, 'users'), where('email', '==', cleanUsername)));
+  const firstMatch = usersSnapshot.docs[0];
+  if (!firstMatch) return null;
+
+  return mapRemoteUser(firstMatch.id, firstMatch.data(), cleanUsername);
+};
+
+const getRemoteUserByUid = async (uid: string): Promise<RemoteUserSummary | null> => {
+  const snapshot = await getDoc(doc(firestoreDb, 'users', uid));
+  if (!snapshot.exists()) return null;
+
+  return mapRemoteUser(snapshot.id, snapshot.data(), snapshot.id);
+};
+
+const ensureDirectConversation = async ({
+  conversationId,
+  currentUid,
+  currentUsername,
+  otherUser,
+}: {
+  conversationId: string;
+  currentUid: string;
+  currentUsername: string;
+  otherUser: RemoteUserSummary;
+}) => {
+  const conversationDoc = doc(firestoreDb, 'conversations', conversationId);
+  const conversationSnapshot = await getDoc(conversationDoc);
+  if (conversationSnapshot.exists()) return conversationDoc;
+
+  await setDoc(conversationDoc, {
+    participants: [currentUid, otherUser.uid].sort(),
+    participantEmails: [currentUsername, otherUser.username].sort(),
+    lastMessageText: '',
+    lastSenderId: currentUid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  return conversationDoc;
+};
+
+export const signUpUser = async (
+  username: string,
+  password: string,
+  displayName: string,
+  profilePatch: Partial<UserProfile> = {},
+) => {
   const cleanUsername = normalizeUsername(username);
   const cleanPassword = password.trim();
   const cleanDisplayName = displayName.trim() || cleanUsername;
@@ -114,44 +280,101 @@ export const signUpUser = async (username: string, password: string, displayName
     return { ok: false as const, error: 'That username already exists.' };
   }
 
-  db[cleanUsername] = {
+  let uid = '';
+
+  try {
+    const credential = await createUserWithEmailAndPassword(firebaseAuth, cleanUsername, cleanPassword);
+    uid = credential.user.uid;
+    await updateProfile(credential.user, { displayName: cleanDisplayName });
+  } catch (err) {
+    const error = err as Error;
+    return { ok: false as const, error: error.message || 'Unable to create Firebase account.' };
+  }
+
+  const userRecord: UserRecord = {
     username: cleanUsername,
     password: cleanPassword,
     displayName: cleanDisplayName,
     reminders: emptyReminders(),
     profile: {
-      state: '',
-      school: '',
-      chapterName: '',
-      gradDate: '',
-      profileImageUri: null,
-      duesTotal: 0,
-      duesPaid: 0,
-      profileComplete: false,
+      ...defaultProfile(),
+      ...profilePatch,
     },
   };
 
+  db[cleanUsername] = userRecord;
   await saveUsersDb(db);
   await AsyncStorage.setItem(CURRENT_USER_KEY, cleanUsername);
+
+  await setDoc(doc(firestoreDb, 'users', uid), {
+    uid,
+    email: cleanUsername,
+    displayName: cleanDisplayName,
+    reminders: userRecord.reminders,
+    profile: userRecord.profile,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }).catch((error) => {
+    console.warn('Firebase user profile create skipped', error);
+  });
+
   return { ok: true as const };
 };
 
 export const loginUser = async (username: string, password: string) => {
   const cleanUsername = normalizeUsername(username);
   const cleanPassword = password.trim();
-  const db = await loadUsersDb();
-  const user = db[cleanUsername];
 
-  if (!user || user.password !== cleanPassword) {
+  try {
+    await signInWithEmailAndPassword(firebaseAuth, cleanUsername, cleanPassword);
+  } catch {
     return { ok: false as const, error: 'Invalid username or password.' };
   }
 
+  const db = await loadUsersDb();
+  const user = db[cleanUsername];
+  const remoteUser = await loadCurrentFirebaseUserRecord(cleanUsername);
+
+  if (!user) {
+    db[cleanUsername] = {
+      username: cleanUsername,
+      password: '',
+      displayName: remoteUser?.displayName || firebaseAuth.currentUser?.displayName || cleanUsername,
+      reminders: remoteUser?.reminders || emptyReminders(),
+      profile: remoteUser?.profile || defaultProfile(),
+    };
+    await saveUsersDb(db);
+  } else if (remoteUser) {
+    db[cleanUsername] = {
+      ...user,
+      displayName: remoteUser.displayName || user.displayName,
+      reminders: remoteUser.reminders || user.reminders,
+      profile: remoteUser.profile || user.profile,
+    };
+    await saveUsersDb(db);
+  }
+
   await AsyncStorage.setItem(CURRENT_USER_KEY, cleanUsername);
+  await syncCurrentUserRecordToFirestoreBestEffort(db[cleanUsername]);
   return { ok: true as const };
 };
 
 export const logoutUser = async () => {
+  await signOut(firebaseAuth);
   await AsyncStorage.removeItem(CURRENT_USER_KEY);
+};
+
+export const clearLocalAccountData = async () => {
+  await signOut(firebaseAuth).catch(() => undefined);
+  await AsyncStorage.multiRemove([USERS_DB_KEY, CURRENT_USER_KEY, MESSAGES_DB_KEY]);
+};
+
+export const clearLocalAccountDataOnce = async () => {
+  const resetVersion = await AsyncStorage.getItem(LOCAL_AUTH_RESET_KEY);
+  if (resetVersion === LOCAL_AUTH_RESET_VERSION) return;
+
+  await clearLocalAccountData();
+  await AsyncStorage.setItem(LOCAL_AUTH_RESET_KEY, LOCAL_AUTH_RESET_VERSION);
 };
 
 export const getCurrentUser = async (): Promise<UserRecord | null> => {
@@ -180,6 +403,7 @@ export const setCurrentUserReminders = async (reminders: AllReminders) => {
   };
 
   await saveUsersDb(db);
+  await syncCurrentUserRecordToFirestoreBestEffort(db[currentUsername]);
 };
 
 export const setCurrentUserProfile = async (profilePatch: Partial<UserRecord['profile']>) => {
@@ -203,6 +427,7 @@ export const setCurrentUserProfile = async (profilePatch: Partial<UserRecord['pr
   };
 
   await saveUsersDb(db);
+  await syncCurrentUserRecordToFirestoreBestEffort(db[currentUsername]);
 };
 
 export const setCurrentUserDisplayName = async (displayName: string) => {
@@ -224,52 +449,58 @@ export const setCurrentUserDisplayName = async (displayName: string) => {
   };
 
   await saveUsersDb(db);
+  if (firebaseAuth.currentUser) {
+    await updateProfile(firebaseAuth.currentUser, { displayName: db[currentUsername].displayName }).catch(() => undefined);
+  }
+  await syncCurrentUserRecordToFirestoreBestEffort(db[currentUsername]);
 };
 
 export const getAllMembersDirectory = async (): Promise<MemberDirectoryItem[]> => {
-  const currentUsername = await AsyncStorage.getItem(CURRENT_USER_KEY);
-  const db = await loadUsersDb();
+  const currentUid = firebaseAuth.currentUser?.uid;
+  const usersSnapshot = await getDocs(collection(firestoreDb, 'users'));
 
-  return Object.values(db)
-    .filter((user) => user.username !== currentUsername)
-    .map((user) => ({
-      username: user.username,
-      displayName: user.displayName,
-      chapterName: user.profile?.chapterName?.trim() || 'No chapter listed',
-    }))
+  return usersSnapshot.docs
+    .filter((item) => item.id !== currentUid)
+    .map((item) => {
+      const user = mapRemoteUser(item.id, item.data(), item.id);
+      return {
+        username: user.username,
+        displayName: user.displayName,
+        chapterName: user.chapterName,
+      };
+    })
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 };
 
 export const getCurrentUserConversations = async (): Promise<ConversationSummary[]> => {
   const currentUsername = await AsyncStorage.getItem(CURRENT_USER_KEY);
   if (!currentUsername) return [];
+  const uid = currentFirebaseUid();
 
-  const usersDb = await loadUsersDb();
-  const messagesDb = await loadMessagesDb();
-
-  const summaries = Object.entries(messagesDb)
-    .filter(([, conversation]) => conversation.participants.includes(currentUsername))
-    .map(([conversationId, conversation]) => {
-      const otherUsername =
-        conversation.participants[0] === currentUsername
-          ? conversation.participants[1]
-          : conversation.participants[0];
-      const otherUser = usersDb[otherUsername];
-      const lastMessage = conversation.messages[conversation.messages.length - 1];
-
+  const snapshot = await getDocs(query(collection(firestoreDb, 'conversations'), where('participants', 'array-contains', uid)));
+  const summaries = await Promise.all(
+    snapshot.docs.map(async (item) => {
+      const data = item.data();
+      const participants = Array.isArray(data.participants) ? data.participants : [];
+      const otherUid = participants.find((participant) => participant !== uid);
+      if (!otherUid) return null;
+      const otherUser = await getRemoteUserByUid(otherUid);
+      if (!otherUser) return null;
       return {
-        conversationId,
-        otherUsername,
-        otherDisplayName: otherUser?.displayName || otherUsername,
-        otherChapterName: otherUser?.profile?.chapterName?.trim() || 'No chapter listed',
-        lastMessageText: lastMessage?.text || '',
-        lastMessageAt: lastMessage?.createdAt || '',
+        conversationId: item.id,
+        otherUsername: otherUser.username,
+        otherDisplayName: otherUser.displayName,
+        otherChapterName: otherUser.chapterName,
+        lastMessageText: typeof data.lastMessageText === 'string' ? data.lastMessageText : '',
+        lastMessageAt: timestampToIso(data.updatedAt ?? data.createdAt),
       };
-    })
+    }),
+  );
+
+  return summaries
+    .filter((item): item is ConversationSummary => item !== null)
     .filter((item) => item.lastMessageAt)
     .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
-
-  return summaries;
 };
 
 export const getConversationWithUser = async (otherUsername: string): Promise<ConversationDetail> => {
@@ -277,25 +508,39 @@ export const getConversationWithUser = async (otherUsername: string): Promise<Co
   if (!currentUsername) {
     throw new Error('No user is logged in.');
   }
+  const uid = currentFirebaseUid();
 
-  const normalizedOther = normalizeUsername(otherUsername);
-  const usersDb = await loadUsersDb();
-  const otherUser = usersDb[normalizedOther];
-
+  const otherUser = await getRemoteUserByUsername(otherUsername);
   if (!otherUser) {
     throw new Error('That member account was not found.');
   }
 
-  const conversationId = buildConversationId(currentUsername, normalizedOther);
-  const messagesDb = await loadMessagesDb();
-  const conversation = messagesDb[conversationId];
+  const conversationId = buildFirestoreConversationId(uid, otherUser.uid);
+  await ensureDirectConversation({
+    conversationId,
+    currentUid: uid,
+    currentUsername,
+    otherUser,
+  });
+
+  const messagesSnapshot = await getDocs(
+    query(collection(firestoreDb, 'conversations', conversationId, 'messages'), orderBy('createdAt', 'asc')),
+  );
 
   return {
     conversationId,
-    otherUsername: normalizedOther,
+    otherUsername: otherUser.username,
     otherDisplayName: otherUser.displayName,
-    otherChapterName: otherUser.profile?.chapterName?.trim() || 'No chapter listed',
-    messages: conversation?.messages || [],
+    otherChapterName: otherUser.chapterName,
+    messages: messagesSnapshot.docs.map((item) => {
+      const data = item.data();
+      return {
+        id: item.id,
+        senderUsername: data.senderId === uid ? currentUsername : otherUser.username,
+        text: typeof data.text === 'string' ? data.text : '',
+        createdAt: timestampToIso(data.createdAt),
+      };
+    }),
   };
 };
 
@@ -304,32 +549,45 @@ export const sendMessageToUser = async (otherUsername: string, text: string) => 
   if (!currentUsername) {
     throw new Error('No user is logged in.');
   }
+  const uid = currentFirebaseUid();
 
-  const normalizedOther = normalizeUsername(otherUsername);
   const trimmedText = text.trim();
   if (!trimmedText) {
     throw new Error('Message cannot be empty.');
   }
 
-  const usersDb = await loadUsersDb();
-  if (!usersDb[normalizedOther]) {
+  const otherUser = await getRemoteUserByUsername(otherUsername);
+  if (!otherUser) {
     throw new Error('That member account was not found.');
   }
 
-  const conversationId = buildConversationId(currentUsername, normalizedOther);
-  const messagesDb = await loadMessagesDb();
-  const existingConversation = messagesDb[conversationId];
-  const message: ChatMessage = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    senderUsername: currentUsername,
+  const conversationId = buildFirestoreConversationId(uid, otherUser.uid);
+  const conversationDoc = await ensureDirectConversation({
+    conversationId,
+    currentUid: uid,
+    currentUsername,
+    otherUser,
+  });
+  const conversationSnapshot = await getDoc(conversationDoc);
+  const timestamps = conversationSnapshot.exists()
+    ? { updatedAt: serverTimestamp() }
+    : { createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+
+  await setDoc(
+    conversationDoc,
+    {
+      participants: [uid, otherUser.uid].sort(),
+      participantEmails: [currentUsername, otherUser.username].sort(),
+      lastMessageText: trimmedText,
+      lastSenderId: uid,
+      ...timestamps,
+    },
+    { merge: true },
+  );
+
+  await addDoc(collection(firestoreDb, 'conversations', conversationId, 'messages'), {
+    senderId: uid,
     text: trimmedText,
-    createdAt: new Date().toISOString(),
-  };
-
-  messagesDb[conversationId] = {
-    participants: existingConversation?.participants || [currentUsername, normalizedOther].sort() as [string, string],
-    messages: [...(existingConversation?.messages || []), message],
-  };
-
-  await saveMessagesDb(messagesDb);
+    createdAt: serverTimestamp(),
+  });
 };

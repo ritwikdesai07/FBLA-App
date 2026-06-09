@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Calendar } from 'react-native-calendars';
 import { useRouter } from 'expo-router';
-import { setCurrentUserProfile, signUpUser } from '@/lib/authStorage';
+import { signUpUser } from '@/lib/authStorage';
 import { FBLATheme } from '@/constants/theme';
 import { FrostedPanel, LiquidBackground, LiquidGlass } from '@/components/liquid-glass';
 
@@ -51,13 +51,7 @@ export default function SignupScreen() {
     setSubmitting(true);
 
     try {
-      const signUpResult = await signUpUser(email.trim(), password, displayName.trim());
-      if (!signUpResult.ok) {
-        Alert.alert('Sign up failed', signUpResult.error);
-        return;
-      }
-
-      await setCurrentUserProfile({
+      const signUpResult = await signUpUser(email.trim(), password, displayName.trim(), {
         state: stateName,
         school: school.trim(),
         chapterName: chapterName.trim(),
@@ -66,6 +60,10 @@ export default function SignupScreen() {
         duesPaid: 0,
         profileComplete: true,
       });
+      if (!signUpResult.ok) {
+        Alert.alert('Sign up failed', signUpResult.error);
+        return;
+      }
 
       router.replace('/');
     } finally {

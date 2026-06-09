@@ -3,7 +3,7 @@
  * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
  */
 
-import { Platform } from 'react-native';
+import { Platform, ViewStyle } from 'react-native';
 
 const fblaBlue = '#003DA5';
 const fblaBlueDark = '#002B73';
@@ -17,6 +17,51 @@ const surfaceSoft = '#F3F7FF';
 
 const tintColorLight = fblaBlue;
 const tintColorDark = fblaYellow;
+
+type ShadowOptions = {
+  color?: string;
+  opacity?: number;
+  radius?: number;
+  offsetX?: number;
+  offsetY?: number;
+  elevation?: number;
+};
+
+function hexToRgb(hex: string) {
+  const clean = hex.replace('#', '');
+  const value = parseInt(clean.length === 3 ? clean.replace(/(.)/g, '$1$1') : clean, 16);
+
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255,
+  };
+}
+
+export function fblaShadow({
+  color = '#001A4F',
+  opacity = 0.12,
+  radius = 14,
+  offsetX = 0,
+  offsetY = 7,
+  elevation = 5,
+}: ShadowOptions = {}): ViewStyle {
+  if (Platform.OS === 'web') {
+    const { r, g, b } = hexToRgb(color);
+
+    return {
+      boxShadow: `${offsetX}px ${offsetY}px ${radius}px rgba(${r}, ${g}, ${b}, ${opacity})`,
+    } as ViewStyle;
+  }
+
+  return {
+    shadowColor: color,
+    shadowOpacity: opacity,
+    shadowRadius: radius,
+    shadowOffset: { width: offsetX, height: offsetY },
+    elevation,
+  };
+}
 
 export const FBLATheme = {
   blue: fblaBlue,
@@ -52,13 +97,7 @@ export const FBLATheme = {
     lg: 18,
     xl: 24,
   },
-  shadowStyle: {
-    shadowColor: '#001A4F',
-    shadowOpacity: 0.1,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 5,
-  },
+  shadowStyle: fblaShadow(),
 };
 
 export const Colors = {

@@ -21,7 +21,7 @@ import {
   getCurrentUserConversations,
 } from '@/lib/authStorage';
 import { ConversationCard } from '@/components/messaging/ConversationCard';
-import { FBLATheme } from '@/constants/theme';
+import { FBLATheme, fblaShadow } from '@/constants/theme';
 import { FrostedPanel, LiquidBackground, LiquidGlass } from '@/components/liquid-glass';
 
 const FBLA_BLUE = FBLATheme.blue;
@@ -179,11 +179,7 @@ const styles = StyleSheet.create({
     backgroundColor: FBLA_BLUE,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#001D5D',
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    ...fblaShadow({ color: '#001D5D', opacity: 0.24, radius: 8, offsetY: 4, elevation: 8 }),
   },
   modalContainer: { flex: 1 },
   modalHeader: {
@@ -202,11 +198,7 @@ const styles = StyleSheet.create({
     borderRightWidth: 0,
     borderBottomLeftRadius: FBLATheme.radius.lg,
     borderBottomRightRadius: FBLATheme.radius.lg,
-    shadowColor: FBLATheme.shadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 5,
+    ...fblaShadow({ opacity: 0.1, radius: 12, offsetY: 6, elevation: 5 }),
   },
   modalTitle: { color: FBLA_BLUE, fontSize: 19, fontWeight: '800' },
   closeText: { color: '#5B6A8F', fontWeight: '700' },

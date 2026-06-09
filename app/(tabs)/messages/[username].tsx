@@ -95,7 +95,7 @@ export default function ConversationScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={tabBarHeight}
-        style={[styles.composerDock, { paddingBottom: tabBarHeight + 52 }]}>
+        style={[styles.composerDock, { bottom: tabBarHeight + 18 }]}>
         <FrostedPanel style={styles.composeRow} contentStyle={styles.composeInner}>
           <TextInput
             style={styles.input}
@@ -165,6 +165,9 @@ const styles = StyleSheet.create({
   myTimeText: { color: '#C7D4FF', textAlign: 'right' },
   theirTimeText: { color: '#6A7AA6' },
   composerDock: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
     paddingHorizontal: 12,
   },
   composeRow: {
@@ -173,7 +176,7 @@ const styles = StyleSheet.create({
   composeInner: {
     paddingHorizontal: 12,
     paddingTop: 8,
-    paddingBottom: 14,
+    paddingBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

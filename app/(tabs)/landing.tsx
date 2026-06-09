@@ -76,6 +76,7 @@ export default function LandingScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <Animated.View
+        pointerEvents="none"
         style={[
           styles.colorBubble,
           styles.blueBubble,
@@ -104,6 +105,7 @@ export default function LandingScreen() {
         ]}
       />
       <Animated.View
+        pointerEvents="none"
         style={[
           styles.colorBubble,
           styles.goldBubble,
@@ -132,6 +134,7 @@ export default function LandingScreen() {
         ]}
       />
       <Animated.View
+        pointerEvents="none"
         style={[
           styles.colorBubble,
           styles.navyBubble,
@@ -153,8 +156,8 @@ export default function LandingScreen() {
           },
         ]}
       />
-      <BlurView intensity={18} tint="light" style={StyleSheet.absoluteFill} />
-      <View style={styles.glassTint} />
+      <BlurView pointerEvents="none" intensity={18} tint="light" style={StyleSheet.absoluteFill} />
+      <View pointerEvents="none" style={styles.glassTint} />
       <View style={styles.content}>
         <FblaSplashScreen />
         <View style={styles.actions}>

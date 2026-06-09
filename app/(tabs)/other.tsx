@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { FBLATheme } from '@/constants/theme';
+import { FBLATheme, fblaShadow } from '@/constants/theme';
 import { LiquidBackground, LiquidGlass } from '@/components/liquid-glass';
 
 const { blue: FBLA_BLUE } = FBLATheme;
@@ -104,11 +104,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(234, 241, 255, 0.72)',
     borderWidth: 1,
     borderColor: 'rgba(191, 208, 255, 0.86)',
-    shadowColor: FBLATheme.shadow,
-    shadowOpacity: 0.14,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
+    ...fblaShadow({ opacity: 0.14, radius: 16, offsetY: 8, elevation: 8 }),
     overflow: 'hidden',
   },
   panelContent: { padding: 16, paddingBottom: 112, gap: 10 },
@@ -122,11 +118,7 @@ const styles = StyleSheet.create({
     borderRadius: FBLATheme.radius.lg,
     padding: 14,
     backgroundColor: FBLATheme.surface,
-    shadowColor: FBLATheme.shadow,
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 3,
+    ...fblaShadow({ opacity: 0.08, radius: 10, offsetY: 5, elevation: 3 }),
   },
   messagingCard: {
     borderColor: 'rgba(255, 210, 0, 0.76)',

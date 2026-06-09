@@ -1,4 +1,5 @@
 import { AllReminders, CalendarType, Reminder, emptyReminders, getCurrentUser, setCurrentUserReminders } from '@/lib/authStorage';
+import { scheduleReminderNotificationsForUser } from '@/lib/notifications';
 
 const FBLA_BLUE = '#003DA5';
 
@@ -11,6 +12,10 @@ export const loadCurrentUserReminders = async (): Promise<AllReminders> => {
 
 export const persistCurrentUserReminders = async (reminders: AllReminders) => {
   await setCurrentUserReminders(reminders);
+  const user = await getCurrentUser();
+  if (user) {
+    await scheduleReminderNotificationsForUser(user.username, reminders);
+  }
 };
 
 export const getRemindersForTypeAndDate = (
